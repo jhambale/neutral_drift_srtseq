@@ -38,6 +38,7 @@ def main():
     parser.add_argument('-r', help='Path to reference fasta')
     parser.add_argument('-c', help='counts per million cutoff used for generation of input csvs')
     parser.add_argument('-t', help='count threshold for filtering')
+    parser.add_argument('-f', help='boolean value for applying score dissimilarity removal')
 
     args = parser.parse_args()
 
@@ -94,10 +95,16 @@ def main():
     # print(replicate_declare_dict)
 
     count_threshold = int(args.t)
-    score_init = []
     reps_dict = {}
-    cell_counts = []
+    # cell_counts = []
     for replicate in replicate_declare_dict.keys():
+
+        # derive cell fractions by finding all cell counts associated with the replicate
+        metadata_rep = metadata_df.copy()[metadata_df['replicate'] == replicate]
+        cell_counts_rep = metadata_rep['cell_count'].tolist()
+
+        score_init = []
+        
         bin_list = replicate_declare_dict[replicate]
         # print(bin_list)
         for scorenum, sample in enumerate(bin_list):
@@ -110,30 +117,32 @@ def main():
             # print(metadata_samp)
             bin_value = int(metadata_samp['bin'].item())
             cell_count_value = int(metadata_samp['cell_count'].item())
-            cell_counts.append(cell_count_value)
+            cell_frac = cell_count_value/np.sum(cell_counts_rep)
+            # cell_counts.append(cell_count_value)
             # bin_df_agg = bin_df_agg.rename(columns={'read_count': f'bin_{bin_value}'},inplace=True)
             bin_df_agg[f'bin_{str(bin_value)}'] = bin_df_agg['aa_sequence'].map(counts_dict).fillna(0).astype(int)
+            
+            # debug module for determining mapping
             # debug_seq = []
             # for seq in bin_df_agg['aa_sequence']:
             #     if bin_df_agg[bin_df_agg['aa_sequence'] == seq][f'bin_{str(bin_value)}'].item() != bin_df_agg[bin_df_agg['aa_sequence'] == seq]['read_count'].item():
             #         debug_seq.append(bin_df_agg[seq].index)
             # print(f'{len(debug_seq)} sequences mapped incorrectly')
+            
             # print(bin_df_agg)
             idxs = list(range(len(bin_df_agg)))
             # print(idxs[:3])
             for idx in idxs:
-                score_init.append({
-                    "aa_sequence": bin_df_agg.loc[idx, 'aa_sequence']
-                , "dna_sequence": bin_df_agg.loc[idx, 'dna_sequence']
-                , "aa_mutations": bin_df_agg.loc[idx, 'aa_mutations']
-                , "dna_mutations": bin_df_agg.loc[idx, 'dna_mutations']
-                , "number_aa_mutations": bin_df_agg.loc[idx, 'number_aa_mutations']
-                , "number_aa_mutations": bin_df_agg.loc[idx, 'number_aa_mutations']
-                , f"bin_{str(bin_value)}": bin_df_agg.loc[idx, f'bin_{str(bin_value)}'] if \
-                    bin_df_agg.loc[idx, f'bin_{str(bin_value)}'] >= count_threshold else 0
-                , f"bin_{str(bin_value)}_norm": (bin_df_agg.loc[idx, f'bin_{str(bin_value)}'] if \
-                                                 bin_df_agg.loc[idx, f'bin_{str(bin_value)}'] >= count_threshold \
-                                                 else 0)*cell_count_value})
+                if bin_df_agg.loc[idx, f'bin_{str(bin_value)}'] >= count_threshold:
+                    score_init.append({
+                        "aa_sequence": bin_df_agg.loc[idx, 'aa_sequence']
+                    , "dna_sequence": bin_df_agg.loc[idx, 'dna_sequence']
+                    , "aa_mutations": bin_df_agg.loc[idx, 'aa_mutations']
+                    , "dna_mutations": bin_df_agg.loc[idx, 'dna_mutations']
+                    , "number_aa_mutations": bin_df_agg.loc[idx, 'number_aa_mutations']
+                    , "number_aa_mutations": bin_df_agg.loc[idx, 'number_aa_mutations']
+                    , f"bin_{str(bin_value)}": bin_df_agg.loc[idx, f'bin_{str(bin_value)}']
+                    , f"bin_{str(bin_value)}_norm": (bin_df_agg.loc[idx, f'bin_{str(bin_value)}']*cell_frac)})
         rep_df = pd.DataFrame(score_init).fillna(0)
         # Identify bin columns robustly
         bin_cols = [c for c in rep_df.columns if re.match(r'^bin_?\d+(?:_norm)?$', str(c))]
@@ -153,19 +162,24 @@ def main():
         # Collapse: sum all bin columns per sequence
         rep_df_merged = rep_df.groupby('aa_sequence', as_index=False).agg(agg_map)
 
+        bin_cols_norm = [c for c in rep_df.columns if re.match(r'^bin_?\d+(?:_norm)$', str(c))]
+        
         # ensure numeric and drop sequences not read enough
         rep_df_merged[bin_cols] = rep_df_merged[bin_cols].apply(pd.to_numeric, errors='coerce').fillna(0)
 
-        read_total = rep_df_merged[bin_cols].sum(axis=1)
+        bin_cols_raw = [c for c in bin_cols if c not in bin_cols_norm]
+
+        read_total = rep_df_merged[bin_cols_raw].sum(axis=1)
+        print(f'read total: {len(read_total)}')
 
         # Drop rows below threshold
         rep_df_merged = rep_df_merged.loc[read_total >= count_threshold].reset_index(drop=True)
         for binny in list(range(bin_total+1)):
-            rep_df_merged[f'bin_{binny}_norm'] = rep_df_merged[f'bin_{binny}_norm']/np.sum(cell_counts) # cell fraction normalization
-            rep_df_merged[f'bin_{binny}_norm'] = rep_df_merged[f'bin_{binny}_norm']/np.sum(rep_df_merged[f'bin_{binny}'].tolist()) # read count normalization
+            # rep_df_merged[f'bin_{binny}_norm'] = rep_df_merged[f'bin_{binny}_norm']/np.sum(cell_counts) # cell fraction normalization
+            rep_df_merged[f'bin_{binny}_norm'] = rep_df_merged[f'bin_{binny}_norm']/int(np.sum(rep_df_merged[f'bin_{binny}'])) # read count normalization
 
         # row wise normalization
-        bin_cols_norm = [c for c in rep_df.columns if re.match(r'^bin_?\d+(?:_norm)$', str(c))]
+
 
         rep_df_merged[bin_cols_norm] = rep_df_merged[bin_cols_norm].div(rep_df_merged[bin_cols_norm].sum(axis=1), axis=0)
 
@@ -224,8 +238,15 @@ def main():
             diff_reps.append(k)
     # removal of replicates with different scores (commented out for now)
     scored_df_uniform = scored_df_all.copy()
-    # for k2 in diff_reps:
-    #     scored_df_uniform = scored_df_uniform.drop(k2)
+    apply_filt = args.f
+    # print(apply_filt)
+    if apply_filt.lower() == 'true':
+        print("applying filtering")
+        for k2 in diff_reps:
+            scored_df_uniform = scored_df_uniform.drop(k2)
+        filtered = True
+    else:
+        filtered = False
     print(f"identified {len(diff_reps)} sequences with dissimilar replicate scores (|diff| > {diff_val})")
 
     X = scored_df_uniform[rep_cols].values
@@ -298,6 +319,15 @@ def main():
         linewidth=2,
         label="Parent DNA sequence"
     )
+    
+    # Get the range for the y=x line
+    min_val = min(min(scored_df_uniform[best_i]), min(scored_df_uniform[best_j]))
+    max_val = max(max(scored_df_uniform[best_i]), max(scored_df_uniform[best_j]))
+    
+    # Plot y=x line
+    plt.plot([min_val, max_val], [min_val, max_val], 'b--', label='y=x')
+
+
         
     # Add labels, legend, and title
     ax.set_xlabel(f'Normalized Score {best_i}', fontsize=16)
@@ -309,7 +339,7 @@ def main():
     plt.gca().text(0.01, 0.8, textstr, transform=plt.gca().transAxes, fontsize=16, verticalalignment='top')
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
-    out_name_fig = out_dir_figs + f'dyn_library_scores_{expt_id}_countthresh{count_threshold}'
+    out_name_fig = out_dir_figs + f'dyn_library_scores_{expt_id}_countthresh{count_threshold}' + ('filtered' if filtered==True else '')
     
     # save plot
     plt.savefig(out_name_fig+'.png', dpi=400)
@@ -449,7 +479,7 @@ def main():
     plt.tight_layout()
     
     outname_hamming_dir = f'../../minibinders_orthorep_data/minibinders_orthorep_outputs/{expt_id}/neutral_drift_library/plots/'
-    outname_histogram_all_classes = outname_hamming_dir + 'hamming_all_classes' + f'_countthresh{count_threshold}'
+    outname_histogram_all_classes = outname_hamming_dir + 'hamming_all_classes' + f'_countthresh{count_threshold}' + ('filtered' if filtered==True else '')
     plt.savefig(outname_histogram_all_classes + '.png', dpi=400)
     # plt.savefig(outname_histogram_all_classes + '.pdf', dpi=400)
     plt.savefig(outname_histogram_all_classes + '.svg', dpi=400)
