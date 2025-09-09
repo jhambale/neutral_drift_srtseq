@@ -1,0 +1,11 @@
+From Miguel 03 20 2025
+The first two scripts are actually pretty much exactly the scripts I sent you previously and use the same directory structure and metadata  (I included an example metadata file for reference).
+The main differences are:
+for the first script, I used the "reference_name" column in the metadata file to automatically fetch minimum and maximum merge lengths for the PEAR step. You can just replace the minibinder names I used with your nanobody name and the minimum and maximum merged read lengths you want to allow. I did +/- 10 nucleotides from the expected merge length, but it's probably better if it's more stringent (e.g., +/- 3bp).
+for the second script: I think there is no difference from the one I sent you previously. basically just creates the mutation table with counts for each variant.
+The main meat of the analysis is in script 3 (named 09_neutral_drift_analysis.py -- I have other scripts for the tite-seq stuff I did, hence why the numbering goes from 2 to 9).  This has a lot more stuff just hard-coded as I didn't expect to have another neutral drift dataset, but I think the main changes you'd have to make are:
+i) change the paths to the mutation csv files (lines 231-241 and line 246) to match your paths to the mutation csv files from script 2
+ii) change the "count_threshold" variable to match your needs. If you do a MiSeq, 100 reads or more is probably much better. Mine is low because I did Amplicon-EZ
+iii) Change the rep1_cell_counts and rep2_cell_counts lists to match the number of cells sorted in your experiments
+iv) there's also some hard-coded output directories (e.g., outname_hamming_dir) that you'd have to change
+Another thing to note is that in the analysis script, I collapse everything at the amino acid level. So if two things have different DNA codings for the same amino acid sequences, I just aggregate them. I think this is what people normally do, but worth thinking about / maybe talking to Chang if you want to keep or change this. I keep track of all the dna encodings in the final csv files (example attached as the library scores csv file).
