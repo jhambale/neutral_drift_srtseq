@@ -99,10 +99,10 @@ do
 	dname=$(dirname $fastq)
 	fpath=$dname/${fname%_R[12]_001.fastq*}
 	experiment_name=$(cat $METADATA | grep $fname | cut -f2)
-	reference_name=$(cat $METADATA | grep $fname | cut -f12)
-    reference_size=$(cat $METADATA | grep $fname | cut -f13) 
-	flank_f=$(cat $METADATA | grep $fname | cut -f10)
-	flank_r=$(cat $METADATA | grep $fname | cut -f11)
+	reference_name=$(cat $METADATA | grep $fname | cut -f13)
+    reference_size=$(cat $METADATA | grep $fname | cut -f14) 
+	flank_f=$(cat $METADATA | grep $fname | cut -f11)
+	flank_r=$(cat $METADATA | grep $fname | cut -f12)
 
   echo Experiment name $experiment_name
     fastqc_out_path=../../minibinders_orthorep_data/minibinders_orthorep_outputs/$experiment_name/fastqc_output/
