@@ -6,7 +6,7 @@ Created on January 29 08:24:51 2025
 @author: alcantar
 modifed by J. Hambalek on 18 July 2025
 imported changes from jupyter notebook '09nb_...' 01 August 2025
-example run 1: python 13_neutral_drift_analysis_input.py -i ../../minibinders_orthorep_data/minibinders_orthorep_outputs/jh_008/mutation_dfs/*mutation_analysis.csv -m ../../minibinders_orthorep_data/ngs_raw/jh_008/demultiplex/jh_008_metadata.txt -r ../../minibinders_orthorep_data/ngs_raw/jh_008/references/pmaa23_nbonly.fasta -c 25 -t 4
+example run 1: python 13_neutral_drift_analysis_input.py -i ../../minibinders_orthorep_data/minibinders_orthorep_outputs/jh_008/mutation_dfs/*mutation_analysis.csv -m ../../minibinders_orthorep_data/ngs_raw/jh_008/demultiplex/jh_008_metadata.txt -r ../../minibinders_orthorep_data/ngs_raw/jh_008/references/pmaa23_nbonly.fasta -c 25 -t 4 -f False
 """
 # activate virtual enviroment before running script
 # source activate minibinders
@@ -274,7 +274,7 @@ def main():
     scored_df_uniform['color'] = scored_df_uniform['predicted_category'].map(category_colors)
 
     # print(scored_df_uniform)
-    out_name = out_dir + f'dyn_library_scores_{expt_id}_countthresh{count_threshold}.csv'
+    out_name = out_dir + f'dyn_library_scores_{expt_id}_countthresh{count_threshold}' + ('filtered' if filtered==True else '') + '.csv'
 
     scored_df_uniform['dna_sequence'] = scored_df_uniform['dna_sequence'].apply(json.dumps)
 
