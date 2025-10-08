@@ -6,7 +6,7 @@ Created on January 29 08:24:51 2025
 @author: alcantar
 modifed by J. Hambalek on 18 July 2025
 imported changes from jupyter notebook '09nb_...' 01 August 2025
-example run 1: python 13_neutral_drift_analysis_input.py -i ../../minibinders_orthorep_data/minibinders_orthorep_outputs/jh_008/mutation_dfs/*mutation_analysis.csv -m ../../minibinders_orthorep_data/ngs_raw/jh_008/demultiplex/jh_008_metadata.txt -r ../../minibinders_orthorep_data/ngs_raw/jh_008/references/pmaa23_nbonly.fasta -c 25 -t 4 -f False
+example run 1: python 14_neutral_drift_analysis_input.py -i ../../minibinders_orthorep_data/minibinders_orthorep_outputs/jh_008/mutation_dfs/*mutation_analysis.csv -m ../../minibinders_orthorep_data/ngs_raw/jh_008/demultiplex/jh_008_metadata.txt -r ../../minibinders_orthorep_data/ngs_raw/jh_008/references/pmaa23_nbonly.fasta -c 25 -t 4 -f False
 """
 # activate virtual enviroment before running script
 # source activate minibinders
@@ -51,6 +51,8 @@ def main():
     make_dir(out_dir)
     out_dir_figs = out_dir+'plots/'
     make_dir(out_dir_figs)
+    out_dir_reps = out_dir+'rep_scores/'
+    make_dir(out_dir_reps)
     
     # define parent / best sequence
     ref_fasta = SeqIO.read(ref_fasta_path, "fasta")
@@ -193,6 +195,10 @@ def main():
         # print(len(rep_df), len(rep_df_merged))
         # print(rep_df_merged[rep_df_merged['aa_mutations'] == '[]'])
         reps_dict[f'replicate_{replicate}'] = rep_df_merged
+
+        rep_out_name = out_dir_reps + f'replicate_{replicate}_{expt_id}_countthresh{count_threshold}' + '.csv'
+
+        rep_df_merged.to_csv(rep_out_name)
     # print(reps_dict)
 
     # bringing all dfs together into one dataframe
@@ -209,6 +215,9 @@ def main():
 
     # build dataframes compiling scores for a given sequence into one row by replicate
     scored_df_wide = scored_df_long.pivot(index = 'aa_sequence', columns='rep_key', values = 'norm_score').reset_index()
+
+    scored_df_wide.fillna('na').to_csv(out_dir_reps + f'{expt_id}_allscores_countthresh{count_threshold}' + '.csv')
+    
     scored_df_wide.columns.name = '.'
 
     # print(scored_df_reps[:4])
@@ -236,7 +245,7 @@ def main():
         replicate_diff = row[rep_cols].std() * 2
         if replicate_diff > diff_val:
             diff_reps.append(k)
-    # removal of replicates with different scores (commented out for now)
+
     scored_df_uniform = scored_df_all.copy()
     apply_filt = args.f
     # print(apply_filt)
