@@ -39,6 +39,7 @@ def main():
     parser.add_argument('-c', help='counts per million cutoff used for generation of input csvs')
     parser.add_argument('-t', help='count threshold for filtering')
     parser.add_argument('-f', help='boolean value for applying score dissimilarity removal')
+    parser.add_argument('-s', default = 'False', help='boolean value for choosing high or low replicate correlation for threshold stringency')
 
     args = parser.parse_args()
 
@@ -104,6 +105,9 @@ def main():
         # derive cell fractions by finding all cell counts associated with the replicate
         metadata_rep = metadata_df.copy()[metadata_df['replicate'] == replicate]
         cell_counts_rep = metadata_rep['cell_count'].tolist()
+        sum_cell_counts = np.sum(cell_counts_rep)
+        # print(cell_counts_rep)
+        # print(sum_cell_counts)
 
         score_init = []
         
@@ -116,10 +120,11 @@ def main():
             sample_name = sample.split('/')[-1].replace(f'cpm{cpm}_mutation_analysis.csv','') #dependent on naming match from script 02
             # print(sample_name)
             metadata_samp = metadata_df.copy()[metadata_df['binder_name'].str.contains(sample_name)]
-            # print(metadata_samp)
+            # print(metadata_samp['cell_count'])
             bin_value = int(metadata_samp['bin'].item())
             cell_count_value = int(metadata_samp['cell_count'].item())
-            cell_frac = cell_count_value/np.sum(cell_counts_rep)
+            cell_frac = cell_count_value/sum_cell_counts
+            # print(cell_frac)
             # cell_counts.append(cell_count_value)
             # bin_df_agg = bin_df_agg.rename(columns={'read_count': f'bin_{bin_value}'},inplace=True)
             bin_df_agg[f'bin_{str(bin_value)}'] = bin_df_agg['aa_sequence'].map(counts_dict).fillna(0).astype(int)
@@ -131,8 +136,12 @@ def main():
             #         debug_seq.append(bin_df_agg[seq].index)
             # print(f'{len(debug_seq)} sequences mapped incorrectly')
             
-            # print(bin_df_agg)
+            # print(bin_df_agg[bin_df_agg[f'bin_{str(bin_value)}'] >= count_threshold])
+            
+            # test subset of sequences to figure out the issue
             idxs = list(range(len(bin_df_agg)))
+            # idxs = list(range(8))
+            
             # print(idxs[:3])
             for idx in idxs:
                 if bin_df_agg.loc[idx, f'bin_{str(bin_value)}'] >= count_threshold:
@@ -145,7 +154,11 @@ def main():
                     , "number_aa_mutations": bin_df_agg.loc[idx, 'number_aa_mutations']
                     , f"bin_{str(bin_value)}": bin_df_agg.loc[idx, f'bin_{str(bin_value)}']
                     , f"bin_{str(bin_value)}_norm": (bin_df_agg.loc[idx, f'bin_{str(bin_value)}']*cell_frac)})
+        
+                # print(score_init)
+
         rep_df = pd.DataFrame(score_init).fillna(0)
+        # print(rep_df[:5])
         # Identify bin columns robustly
         bin_cols = [c for c in rep_df.columns if re.match(r'^bin_?\d+(?:_norm)?$', str(c))]
         # print(bin_cols)
@@ -173,11 +186,13 @@ def main():
 
         read_total = rep_df_merged[bin_cols_raw].sum(axis=1)
         print(f'read total: {len(read_total)}')
+        
 
         # Drop rows below threshold
         rep_df_merged = rep_df_merged.loc[read_total >= count_threshold].reset_index(drop=True)
         for binny in list(range(bin_total+1)):
             # rep_df_merged[f'bin_{binny}_norm'] = rep_df_merged[f'bin_{binny}_norm']/np.sum(cell_counts) # cell fraction normalization
+            # print(int(np.sum(rep_df_merged[f'bin_{binny}'])))
             rep_df_merged[f'bin_{binny}_norm'] = rep_df_merged[f'bin_{binny}_norm']/int(np.sum(rep_df_merged[f'bin_{binny}'])) # read count normalization
 
         # row wise normalization
@@ -186,7 +201,7 @@ def main():
         rep_df_merged[bin_cols_norm] = rep_df_merged[bin_cols_norm].div(rep_df_merged[bin_cols_norm].sum(axis=1), axis=0)
 
         # add normqlized score
-        norm_counts = rep_df_merged[bin_cols_norm]
+        # norm_counts = rep_df_merged[bin_cols_norm]
         bin_weights = [i/bin_total for i in range(bin_total+1)]
         # print(bin_weights)
         rep_df_merged['norm_score'] = rep_df_merged[bin_cols_norm].dot(np.asarray(bin_weights, dtype=float))
@@ -299,11 +314,26 @@ def main():
     # ignore diagonal and duplicate pairs by masking upper triangle
     mask = np.triu(np.ones_like(corr, dtype=bool))
     corr_masked = corr.mask(mask)
-    # find max value
-    corr_idx = corr_masked.stack().idxmax()
+
+    stringency = args.s
+    
+    if stringency.lower() == 'true':
+        # option to use min value for read count stringency
+        corr_idx = corr_masked.stack().idxmin()
+        print(corr_idx)
+    else:
+        # otherwise take find max value of correlations (default)
+        corr_idx = corr_masked.stack().idxmax()
+    
     best_i, best_j = corr_idx
     best_score = corr_masked.loc[best_i, best_j] 
-    print(f"Best pair: ({best_i},{best_j}) (|pearson|={best_score:.3f})")
+
+    if stringency.lower() == 'true':
+        # read out the lowest correlation (could be bad)
+        print(f"Worst pair: ({best_i},{best_j}) (|pearson|={best_score:.3f})")
+    else:
+        # standard best print statement
+        print(f"Best pair: ({best_i},{best_j}) (|pearson|={best_score:.3f})")
     
     # plot scatter of best reps
     ax.scatter(
@@ -489,6 +519,8 @@ def main():
     
     outname_hamming_dir = f'../../minibinders_orthorep_data/minibinders_orthorep_outputs/{expt_id}/neutral_drift_library/plots/'
     outname_histogram_all_classes = outname_hamming_dir + 'hamming_all_classes' + f'_countthresh{count_threshold}' + ('filtered' if filtered==True else '')
+
+    
     plt.savefig(outname_histogram_all_classes + '.png', dpi=400)
     # plt.savefig(outname_histogram_all_classes + '.pdf', dpi=400)
     plt.savefig(outname_histogram_all_classes + '.svg', dpi=400)
