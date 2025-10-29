@@ -99,7 +99,7 @@ def main():
 
     count_threshold = int(args.t)
     reps_dict = {}
-    # cell_counts = []
+    reptotal_counts = []
     for replicate in replicate_declare_dict.keys():
 
         # derive cell fractions by finding all cell counts associated with the replicate
@@ -144,16 +144,16 @@ def main():
             
             # print(idxs[:3])
             for idx in idxs:
-                if bin_df_agg.loc[idx, f'bin_{str(bin_value)}'] >= count_threshold:
-                    score_init.append({
-                        "aa_sequence": bin_df_agg.loc[idx, 'aa_sequence']
-                    , "dna_sequence": bin_df_agg.loc[idx, 'dna_sequence']
-                    , "aa_mutations": bin_df_agg.loc[idx, 'aa_mutations']
-                    , "dna_mutations": bin_df_agg.loc[idx, 'dna_mutations']
-                    , "number_aa_mutations": bin_df_agg.loc[idx, 'number_aa_mutations']
-                    , "number_aa_mutations": bin_df_agg.loc[idx, 'number_aa_mutations']
-                    , f"bin_{str(bin_value)}": bin_df_agg.loc[idx, f'bin_{str(bin_value)}']
-                    , f"bin_{str(bin_value)}_norm": (bin_df_agg.loc[idx, f'bin_{str(bin_value)}']*cell_frac)})
+                # if bin_df_agg.loc[idx, f'bin_{str(bin_value)}'] >= count_threshold:
+                score_init.append({
+                    "aa_sequence": bin_df_agg.loc[idx, 'aa_sequence']
+                , "dna_sequence": bin_df_agg.loc[idx, 'dna_sequence']
+                , "aa_mutations": bin_df_agg.loc[idx, 'aa_mutations']
+                , "dna_mutations": bin_df_agg.loc[idx, 'dna_mutations']
+                , "number_aa_mutations": bin_df_agg.loc[idx, 'number_aa_mutations']
+                , "number_aa_mutations": bin_df_agg.loc[idx, 'number_aa_mutations']
+                , f"bin_{str(bin_value)}": bin_df_agg.loc[idx, f'bin_{str(bin_value)}']
+                , f"bin_{str(bin_value)}_norm": (bin_df_agg.loc[idx, f'bin_{str(bin_value)}']*cell_frac)})
         
                 # print(score_init)
 
@@ -186,6 +186,9 @@ def main():
 
         read_total = rep_df_merged[bin_cols_raw].sum(axis=1)
         print(f'read total: {len(read_total)}')
+        reptotal_counts.append(len(read_total))
+
+        # rep_df_sorted = rep_df_merged.assign(read_sum=
         
 
         # Drop rows below threshold
@@ -261,6 +264,16 @@ def main():
         if replicate_diff > diff_val:
             diff_reps.append(k)
 
+    # print(reptotal_counts[0])
+    # print(reptotal_counts[1])
+    # print(len(scored_df_all))
+    venn = simple_venn(reptotal_counts[0],reptotal_counts[1],len(scored_df_all))
+
+    venn_out_name = out_dir + f'library_overlap_{expt_id}'
+    
+    venn.savefig(venn_out_name+'.png', dpi=400)
+
+
     scored_df_uniform = scored_df_all.copy()
     apply_filt = args.f
     # print(apply_filt)
@@ -298,7 +311,7 @@ def main():
     scored_df_uniform['color'] = scored_df_uniform['predicted_category'].map(category_colors)
 
     # print(scored_df_uniform)
-    out_name = out_dir + f'dyn_library_scores_{expt_id}_countthresh{count_threshold}' + ('filtered' if filtered==True else '') + '.csv'
+    out_name = out_dir + f'dyn2_library_scores_{expt_id}_countthresh{count_threshold}' + ('filtered' if filtered==True else '') + '.csv'
 
     scored_df_uniform['dna_sequence'] = scored_df_uniform['dna_sequence'].apply(json.dumps)
 
@@ -306,6 +319,17 @@ def main():
     # df2 = pd.read_csv('out.csv', converters={'seq_list': json.loads})
     # print(scored_df_uniform[scored_df_uniform['aa_mutations'] == '[]'])
     scored_df_uniform.drop('color', axis=1).to_csv(out_name)
+
+    scored_df_reps1 = scored_df_uniform[scored_df_uniform['replicate_1']>scored_df_uniform['replicate_2']]
+    scored_df_reps2 = scored_df_uniform[scored_df_uniform['replicate_2']>scored_df_uniform['replicate_1']]
+
+    if len(scored_df_reps1) < len(scored_df_reps2):
+        out_name_rep = out_dir + f'rep1over2_{expt_id}_countthresh{count_threshold}' + ('filtered' if filtered==True else '') + '.csv'
+        scored_df_reps1.drop('color', axis=1).to_csv(out_name_rep)
+    else:
+        out_name_rep = out_dir + f'rep2over1_{expt_id}_countthresh{count_threshold}' + ('filtered' if filtered==True else '') + '.csv'
+        scored_df_reps2.drop('color', axis=1).to_csv(out_name_rep)
+        
 
     # initialize figure generation
     fig, ax = plt.subplots(figsize=(10, 8))
@@ -378,7 +402,7 @@ def main():
     plt.gca().text(0.01, 0.8, textstr, transform=plt.gca().transAxes, fontsize=16, verticalalignment='top')
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
-    out_name_fig = out_dir_figs + f'dyn_library_scores_{expt_id}_countthresh{count_threshold}' + ('filtered' if filtered==True else '')
+    out_name_fig = out_dir_figs + f'dyn2_library_scores_{expt_id}_countthresh{count_threshold}' + ('filtered' if filtered==True else '')
     
     # save plot
     plt.savefig(out_name_fig+'.png', dpi=400)

@@ -469,3 +469,78 @@ def plot_hamming_distances(annotated_counts_df,
     plt.savefig(f'{outname_hamming_pairwise_plot}.svg', dpi=400)
     plt.close()
 
+import matplotlib.pyplot as plt
+import numpy as np
+
+def simple_venn(circle1_size, circle2_size, overlap_size):
+    """
+    Create a simple Venn diagram using basic matplotlib circles.
+    
+    Parameters:
+    -----------
+    circle1_size : float
+        Total size of circle 1
+    circle2_size : float
+        Total size of circle 2
+    overlap_size : float
+        Size of the overlapping region
+    """
+    
+    # Validate inputs
+    if overlap_size > min(circle1_size, circle2_size):
+        raise ValueError("Overlap size cannot be larger than the smaller circle")
+    
+    # Calculate radii (assuming area proportional to size)
+    r1 = np.sqrt(circle1_size / np.pi)
+    r2 = np.sqrt(circle2_size / np.pi)
+    
+    # Calculate distance between centers for desired overlap
+    # This is an approximation - for exact overlap area calculation, 
+    # more complex math would be needed
+    if overlap_size == 0:
+        d = r1 + r2 + 0.1
+    elif overlap_size == min(circle1_size, circle2_size):
+        d = abs(r1 - r2)
+    else:
+        # Approximate distance for partial overlap
+        overlap_ratio = overlap_size / min(circle1_size, circle2_size)
+        d = r1 + r2 - 2 * min(r1, r2) * overlap_ratio
+    
+    # Create figure
+    fig, ax = plt.subplots(figsize=(10, 8))
+    
+    # Draw circles
+    circle1 = plt.Circle((-d/2, 0), r1, color='blue', alpha=0.5, label=f'Circle 1 (size={circle1_size})')
+    circle2 = plt.Circle((d/2, 0), r2, color='red', alpha=0.5, label=f'Circle 2 (size={circle2_size})')
+    
+    ax.add_patch(circle1)
+    ax.add_patch(circle2)
+    
+    # Set axis properties
+    ax.set_xlim(-r1-d/2-1, r2+d/2+1)
+    ax.set_ylim(-max(r1, r2)-1, max(r1, r2)+1)
+    ax.set_aspect('equal')
+    ax.grid(True, alpha=0.3)
+    
+    # Add labels
+    ax.text(-d/2, 0, f'{circle1_size}', ha='center', va='center', fontsize=12, fontweight='bold')
+    ax.text(d/2, 0, f'{circle2_size}', ha='center', va='center', fontsize=12, fontweight='bold')
+    ax.text(0, 0, f'Overlap\n{overlap_size}', ha='center', va='center', fontsize=10)
+    
+    # Title and legend
+    plt.title(f'Venn Diagram\nCircle 1: {circle1_size}, Circle 2: {circle2_size}, Overlap: {overlap_size}',
+              fontsize=14, fontweight='bold')
+    plt.legend(loc='upper right')
+    
+    plt.tight_layout()
+    # plt.show()
+
+    return fig
+    
+# Quick usage function
+def quick_venn():
+    """Quick function to create Venn diagram with 3 inputs"""
+    c1 = float(input("Circle 1 size: "))
+    c2 = float(input("Circle 2 size: "))
+    overlap = float(input("Overlap size: "))
+    simple_venn(c1, c2, overlap)
