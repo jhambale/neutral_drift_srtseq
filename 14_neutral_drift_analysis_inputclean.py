@@ -48,12 +48,12 @@ def main():
     nanobody_id = ref_fasta_path.split('/')[-1].replace('_nbonly.fasta', '')
     print(f'experiment id: {expt_id}')
 
-    out_dir = f'../../minibinders_orthorep_data/minibinders_orthorep_outputs/{expt_id}/neutral_drift_library/'
-    make_dir(out_dir)
-    out_dir_figs = out_dir+'plots/'
-    make_dir(out_dir_figs)
-    out_dir_reps = out_dir+'rep_scores/'
-    make_dir(out_dir_reps)
+    # out_dir = f'../../minibinders_orthorep_data/minibinders_orthorep_outputs/{expt_id}/neutral_drift_library/'
+    # make_dir(out_dir)
+    # out_dir_figs = out_dir+'plots/'
+    # make_dir(out_dir_figs)
+    # out_dir_reps = out_dir+'rep_scores/'
+    # make_dir(out_dir_reps)
     
     # define parent / best sequence
     ref_fasta = SeqIO.read(ref_fasta_path, "fasta")
@@ -75,6 +75,20 @@ def main():
     # bin_seq_paths = list(filter(lambda x: x == f'*cpm{cpm}*', all_bin_seqs))
     bin_seq_paths = [path for path in all_bin_seqs if isinstance(path, str) and keyword in path]
     # print(bin_seq_paths)
+
+    # dynamic architecture placing neutral drift library wherever mutation_dfs are sourced
+    
+    # print(bin_seq_paths[0])
+    dir_prefix =  '/'.join(bin_seq_paths[0].split('/')[:-2])
+    print(f'output directory: {dir_prefix}')
+    # out_dir = f'../../minibinders_orthorep_data/minibinders_orthorep_outputs/{expt_id}/neutral_drift_library/'
+    out_dir = dir_prefix + '/neutral_drift_library/'
+    # print(out_dir)
+    make_dir(out_dir)
+    out_dir_figs = out_dir+'plots/'
+    make_dir(out_dir_figs)
+    out_dir_reps = out_dir+'rep_scores/'
+    make_dir(out_dir_reps)
 
     replicate_declare_dict = {}
 
@@ -541,8 +555,8 @@ def main():
     plt.legend(loc='upper right')
     plt.tight_layout()
     
-    outname_hamming_dir = f'../../minibinders_orthorep_data/minibinders_orthorep_outputs/{expt_id}/neutral_drift_library/plots/'
-    outname_histogram_all_classes = outname_hamming_dir + 'hamming_all_classes' + f'_countthresh{count_threshold}' + ('filtered' if filtered==True else '')
+    # outname_hamming_dir = f'../../minibinders_orthorep_data/minibinders_orthorep_outputs/{expt_id}/neutral_drift_library/plots/'
+    outname_histogram_all_classes = out_dir_figs + 'hamming_all_classes' + f'_countthresh{count_threshold}' + ('filtered' if filtered==True else '')
 
     
     plt.savefig(outname_histogram_all_classes + '.png', dpi=400)
