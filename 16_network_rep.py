@@ -21,8 +21,6 @@ import pandas as pd
 
 import argparse
 
-# review 31 OCT 2025
-
 def compute_sequence_similarity_matrix(sequences, method='blosum62'):
     """
     Compute pairwise similarity matrix for amino acid sequences.
