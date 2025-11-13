@@ -14,6 +14,7 @@ import matplotlib.colors as mcolors
 from typing import List, Dict, Tuple
 import numpy as np
 import pandas as pd
+import json
 from utils_nd import *
 
 import argparse
@@ -120,35 +121,203 @@ def visualize_network(G: nx.Graph, node_data: Dict, expt_id='',
     
     # plt.show()
 
-def analyze_network(G: nx.Graph, node_data: Dict):
+def analyze_network(G: nx.Graph, node_data: Dict, output_file=None):
     """
-    Print basic network statistics.
+    Print basic network statistics and optionally save to file.
+    
+    Args:
+        G: NetworkX graph
+        node_data: Dictionary mapping sequences to scores
+        output_file: Optional path to save the analysis output
     """
-    print("=" * 50)
-    print("NETWORK STATISTICS")
-    print("=" * 50)
-    print(f"Number of sequences (nodes): {G.number_of_nodes()}")
-    print(f"Number of connections (edges): {G.number_of_edges()}")
-    print(f"Average degree: {sum(dict(G.degree()).values()) / G.number_of_nodes():.2f}")
-    print(f"Network density: {nx.density(G):.4f}")
-    print(f"Number of connected components: {nx.number_connected_components(G)}")
+    # Collect all output in a list
+    output_lines = []
+    
+    output_lines.append("=" * 50)
+    output_lines.append("NETWORK STATISTICS")
+    output_lines.append("=" * 50)
+    output_lines.append(f"Number of sequences (nodes): {G.number_of_nodes()}")
+    output_lines.append(f"Number of connections (edges): {G.number_of_edges()}")
+    output_lines.append(f"Average degree: {sum(dict(G.degree()).values()) / G.number_of_nodes():.2f}")
+    output_lines.append(f"Network density: {nx.density(G):.4f}")
+    output_lines.append(f"Number of connected components: {nx.number_connected_components(G)}")
     
     # Score statistics
     scores = list(node_data.values())
-    print(f"\nFunction Score Statistics:")
-    print(f"  Min: {min(scores):.4f}")
-    print(f"  Max: {max(scores):.4f}")
-    print(f"  Mean: {np.mean(scores):.4f}")
-    print(f"  Std: {np.std(scores):.4f}")
+    output_lines.append(f"\nFunction Score Statistics:")
+    output_lines.append(f"  Min: {min(scores):.4f}")
+    output_lines.append(f"  Max: {max(scores):.4f}")
+    output_lines.append(f"  Mean: {np.mean(scores):.4f}")
+    output_lines.append(f"  Std: {np.std(scores):.4f}")
     
     # Find most connected sequences
     degrees = dict(G.degree())
     top_connected = sorted(degrees.items(), key=lambda x: x[1], reverse=True)[:5]
-    print(f"\nTop 5 most connected sequences:")
+    output_lines.append(f"\nTop 5 most connected sequences:")
     for seq, degree in top_connected:
-        print(f"  {seq}: {degree} connections (score: {node_data[seq]:.4f})")
+        output_lines.append(f"  {seq}: {degree} connections (score: {node_data[seq]:.4f})")
     
-    print("=" * 50)
+    output_lines.append("=" * 50)
+    
+    # Print to terminal
+    for line in output_lines:
+        print(line)
+    
+    # Save to file if path provided
+    if output_file:
+        with open(output_file, 'w') as f:
+            f.write('\n'.join(output_lines))
+        print(f"\nAnalysis saved to: {output_file}")
+
+def export_for_cytoscape(G: nx.Graph, node_data: Dict, expt_id: str, output_prefix: str):
+    """
+    Export network data in multiple formats compatible with Cytoscape.
+    
+    Args:
+        G: NetworkX graph
+        node_data: Dictionary mapping sequences to scores
+        output_prefix: Prefix for output files (e.g., 'jh_019_network')
+    """
+    base_dir = os.path.dirname(output_prefix)
+    base_name = os.path.basename(output_prefix)
+    
+    # 1. Export as GraphML (RECOMMENDED - preserves all attributes)
+    graphml_file = os.path.join(base_dir, f"{base_name}.graphml")
+    nx.write_graphml(G, graphml_file)
+    print(f"GraphML file saved: {graphml_file}")
+    
+    # 2. Export as GML
+    gml_file = os.path.join(base_dir, f"{base_name}.gml")
+    nx.write_gml(G, gml_file)
+    print(f"GML file saved: {gml_file}")
+    
+    # 3. Export node table (CSV)
+    node_table = []
+    degrees = dict(G.degree())
+    for node in G.nodes():
+        node_table.append({
+            'sequence': node,
+            'function_score': node_data[node],
+            'degree': degrees[node],
+            'sequence_length': len(node)
+        })
+    
+    node_df = pd.DataFrame(node_table)
+    node_csv = os.path.join(base_dir, f"{base_name}_nodes.csv")
+    node_df.to_csv(node_csv, index=False)
+    print(f"Node table saved: {node_csv}")
+    
+    # 4. Export edge table (CSV)
+    edge_table = []
+    for edge in G.edges():
+        seq1, seq2 = edge
+        # Find the position where they differ
+        diff_positions = [i for i, (c1, c2) in enumerate(zip(seq1, seq2)) if c1 != c2]
+        
+        edge_table.append({
+            'source': seq1,
+            'target': seq2,
+            'interaction': 'one_mutation',
+            'mutation_position': diff_positions[0] if diff_positions else -1,
+            'source_score': node_data[seq1],
+            'target_score': node_data[seq2],
+            'score_difference': abs(node_data[seq1] - node_data[seq2])
+        })
+    
+    edge_df = pd.DataFrame(edge_table)
+    edge_csv = os.path.join(base_dir, f"{base_name}_edges.csv")
+    edge_df.to_csv(edge_csv, index=False)
+    print(f"Edge table saved: {edge_csv}")
+    
+    # 5. Export as Cytoscape.js JSON
+    cyjs_data = nx.cytoscape_data(G)
+    cyjs_file = os.path.join(base_dir, f"{base_name}.cyjs")
+    with open(cyjs_file, 'w') as f:
+        json.dump(cyjs_data, f, indent=2)
+    print(f"Cytoscape.js JSON saved: {cyjs_file}")
+    
+    # 6. Export as adjacency list
+    adjlist_file = os.path.join(base_dir, f"{base_name}.adjlist")
+    nx.write_adjlist(G, adjlist_file)
+    print(f"Adjacency list saved: {adjlist_file}")
+    
+    print("\n" + "="*50)
+    print("CYTOSCAPE IMPORT INSTRUCTIONS")
+    print("="*50)
+    print("\nOption 1 (RECOMMENDED): Import GraphML")
+    print(f"  1. Open Cytoscape")
+    print(f"  2. File → Import → Network from File")
+    print(f"  3. Select: {graphml_file}")
+    print(f"  4. All node attributes (including scores) will be imported automatically")
+    
+    print("\nOption 2: Import from CSV tables")
+    print(f"  1. Open Cytoscape")
+    print(f"  2. File → Import → Network from File")
+    print(f"  3. Select: {edge_csv}")
+    print(f"  4. Set 'source' as Source Node and 'target' as Target Node")
+    print(f"  5. File → Import → Table from File")
+    print(f"  6. Select: {node_csv}")
+    print(f"  7. Import as Node Table, key column: 'sequence'")
+    
+    print("\nOption 3: Import Cytoscape.js JSON")
+    print(f"  1. Open Cytoscape")
+    print(f"  2. File → Import → Network from File")
+    print(f"  3. Select: {cyjs_file}")
+    print("="*50)
+
+def export_node_attributes_detailed(G: nx.Graph, node_data: Dict, output_file: str):
+    """
+    Export detailed node attributes table for Cytoscape import.
+    Includes additional network metrics.
+    
+    Args:
+        G: NetworkX graph
+        node_data: Dictionary mapping sequences to scores
+        output_file: Path to save the CSV file
+    """
+    
+    # Calculate various centrality measures
+    degree_cent = nx.degree_centrality(G)
+    
+    # Only calculate these if graph is connected, otherwise do per component
+    if nx.is_connected(G):
+        betweenness_cent = nx.betweenness_centrality(G)
+        closeness_cent = nx.closeness_centrality(G)
+    else:
+        betweenness_cent = {node: 0 for node in G.nodes()}
+        closeness_cent = {node: 0 for node in G.nodes()}
+    
+    # Clustering coefficient
+    clustering = nx.clustering(G)
+    
+    # Build detailed table
+    node_table = []
+    for node in G.nodes():
+        # Get neighbors
+        neighbors = list(G.neighbors(node))
+        neighbor_scores = [node_data[n] for n in neighbors]
+        
+        node_table.append({
+            'sequence': node,
+            'function_score': node_data[node],
+            'degree': G.degree(node),
+            'degree_centrality': degree_cent[node],
+            'betweenness_centrality': betweenness_cent[node],
+            'closeness_centrality': closeness_cent[node],
+            'clustering_coefficient': clustering[node],
+            'num_neighbors': len(neighbors),
+            'avg_neighbor_score': np.mean(neighbor_scores) if neighbor_scores else 0,
+            'max_neighbor_score': max(neighbor_scores) if neighbor_scores else 0,
+            'min_neighbor_score': min(neighbor_scores) if neighbor_scores else 0,
+            'sequence_length': len(node)
+        })
+    
+    df = pd.DataFrame(node_table)
+    df.to_csv(output_file, index=False)
+    print(f"Detailed node attributes saved: {output_file}")
+    
+    return df
+
 
 # ============================================
 # EXAMPLE USAGE
@@ -194,16 +363,31 @@ def main():
     print("Building sequence network...")
     G, node_data = build_sequence_network(sequences, function_scores)
     
-    # Analyze network
-    analyze_network(G, node_data)
+    network_txt = dir_prefix + f'{expt_id}_network_stats.txt'
     
-    # Visualize network
-    print("\nVisualizing network...")
-    visualize_network(G, node_data, expt_id, 
-                     layout='spring',  # Try 'circular', 'kamada_kawai', 'spectral'
-                     cmap='RdYlGn',    # Try 'viridis', 'plasma', 'coolwarm', 'RdYlGn'
-                     node_size=100,
-                     save_path = dir_prefix + f'{expt_id}_sequence_network.png')  # Set to None to not save
+    # Analyze network
+    analyze_network(G, node_data, network_txt)
+
+    # Export for Cytoscape
+    print("\nExporting network data for Cytoscape...")
+    export_for_cytoscape(G, node_data, expt_id,
+                        output_prefix=dir_prefix + f'{expt_id}_network')
+    
+    # Export detailed node attributes
+    export_node_attributes_detailed(G, node_data,
+                                    output_file=dir_prefix + f'{expt_id}_network_nodes_detailed.csv')
+
+    layouts = ['spring', 'circular', 'kamada_kawai', 'spectral']
+
+    # Visualize network in each network style
+
+    # for style in layouts:
+    #     print(f"\nVisualizing network ({style})...")
+    #     visualize_network(G, node_data, expt_id, 
+    #                      layout=str(style),  # Try 'circular', 'kamada_kawai', 'spectral'
+    #                      cmap='RdYlGn',    # Try 'viridis', 'plasma', 'coolwarm', 'RdYlGn'
+    #                      node_size=100,
+    #                      save_path = dir_prefix + f'{expt_id}_sequence_network_{style}.png')  # Set to None to not save
 
 if __name__ == "__main__":
     main()

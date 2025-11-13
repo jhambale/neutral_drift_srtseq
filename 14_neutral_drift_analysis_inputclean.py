@@ -207,6 +207,7 @@ def main():
 
         # Drop rows below threshold
         rep_df_merged = rep_df_merged.loc[read_total >= count_threshold].reset_index(drop=True)
+        
         for binny in list(range(bin_total+1)):
             # rep_df_merged[f'bin_{binny}_norm'] = rep_df_merged[f'bin_{binny}_norm']/np.sum(cell_counts) # cell fraction normalization
             # print(int(np.sum(rep_df_merged[f'bin_{binny}'])))
