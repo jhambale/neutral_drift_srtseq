@@ -367,7 +367,8 @@ def aggregate_by_aa_sequence(initial_df):
 def plot_hamming_distances(annotated_counts_df,
                            out_name_1,
                            out_name_2,
-                           expt_id):
+                           expt_id,
+                           color):
     """
     Plot hamming distance to parent sequence and pairwise hamming distance
     as a histogram.
@@ -404,7 +405,7 @@ def plot_hamming_distances(annotated_counts_df,
 
     g = sns.histplot(data=annotated_counts_df, x="number_aa_mutations",
                          binwidth=1,stat='probability',
-                         edgecolor='black', linewidth=0.5)
+                         edgecolor='black', color=color, linewidth=0.5)
     ax = plt.gca()
     # Adjust the ticks
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
@@ -424,10 +425,11 @@ def plot_hamming_distances(annotated_counts_df,
     g.set_xlim([new_ticks[0]+0.5, new_ticks[-1]-0.5])
     outname_hamming_dir = f'../../minibinders_orthorep_data/minibinders_orthorep_outputs/{expt_id}/neutral_drift_library/plots/'
     outname_hamming_to_parent_plot =outname_hamming_dir + out_name_1
+    plt.tight_layout()
     # Show the plot
     plt.savefig(f'{outname_hamming_to_parent_plot}.png', dpi=400)
-    plt.savefig(f'{outname_hamming_to_parent_plot}.pdf', dpi=400)
-    plt.savefig(f'{outname_hamming_to_parent_plot}.svg', dpi=400)
+    # plt.savefig(f'{outname_hamming_to_parent_plot}.pdf', dpi=400)
+    # plt.savefig(f'{outname_hamming_to_parent_plot}.svg', dpi=400)
     plt.close()
 
     #plot pairwise hamming
@@ -438,7 +440,7 @@ def plot_hamming_distances(annotated_counts_df,
 
     g = sns.histplot(data=hamming_pairwise_aa,
                              binwidth=1,stat='probability',
-                             edgecolor='black', linewidth=0.5)
+                             edgecolor='black', color=color, linewidth=0.5)
     # sns.histplot(data=norm_counts_annotated_df, x="number_aa_mutations",
     #                  binwidth=1,stat='probability',
     #                  edgecolor='black', linewidth=0.5, color='gray')
@@ -463,10 +465,11 @@ def plot_hamming_distances(annotated_counts_df,
 
     outname_hamming_dir = f'../../minibinders_orthorep_data/minibinders_orthorep_outputs/{expt_id}/neutral_drift_library/plots/'
     outname_hamming_pairwise_plot =outname_hamming_dir + out_name_2
+    plt.tight_layout()
     # Show the plot
     plt.savefig(f'{outname_hamming_pairwise_plot}.png', dpi=400)
-    plt.savefig(f'{outname_hamming_pairwise_plot}.pdf', dpi=400)
-    plt.savefig(f'{outname_hamming_pairwise_plot}.svg', dpi=400)
+    # plt.savefig(f'{outname_hamming_pairwise_plot}.pdf', dpi=400)
+    # plt.savefig(f'{outname_hamming_pairwise_plot}.svg', dpi=400)
     plt.close()
 
 import matplotlib.pyplot as plt

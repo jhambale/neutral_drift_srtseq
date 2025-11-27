@@ -288,6 +288,8 @@ def main():
     
     venn.savefig(venn_out_name+'.png', dpi=400)
 
+    plt.clf()
+
 
     scored_df_uniform = scored_df_all.copy()
     apply_filt = args.f
@@ -456,18 +458,24 @@ def main():
     inactive_annotated_counts_df = scored_df_uniform.copy()[scored_df_uniform['predicted_category']=="Inactive"]
 
 
-    # plot_hamming_distances(annotated_counts_df=best_annotated_counts_df,
-    #                        out_name_1='hamming_vs_parent_Best Activity' ,
-    #                        out_name_2='pairwise_hamming_Best Activity',
-    #                        expt_id=expt_id)
-    # plot_hamming_distances(annotated_counts_df=active_annotated_counts_df,
-    #                        out_name_1='hamming_vs_parent_active' ,
-    #                        out_name_2='pairwise_hamming_active',
-    #                        expt_id=expt_id)
-    # plot_hamming_distances(annotated_counts_df=inactive_annotated_counts_df,
-    #                        out_name_1='hamming_vs_parent_inactive' ,
-    #                        out_name_2='pairwise_hamming_inactive',
-    #                        expt_id=expt_id)
+    plot_hamming_distances(annotated_counts_df=best_annotated_counts_df,
+                           out_name_1='hamming_vs_parent_Best' ,
+                           out_name_2='pairwise_hamming_Best',
+                           expt_id=expt_id,
+                           color='orange')
+    
+    plot_hamming_distances(annotated_counts_df=active_annotated_counts_df,
+                           out_name_1='hamming_vs_parent_active' ,
+                           out_name_2='pairwise_hamming_active',
+                           expt_id=expt_id,
+                           color='#3B71B2')
+    
+    plot_hamming_distances(annotated_counts_df=inactive_annotated_counts_df,
+                           out_name_1='hamming_vs_parent_inactive' ,
+                           out_name_2='pairwise_hamming_inactive',
+                           expt_id=expt_id,
+                           color='grey')
+    
     # plot versus parent
     num_sequences = scored_df_uniform.shape[0]
     # Set the Seaborn style and context

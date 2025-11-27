@@ -8,6 +8,8 @@ example run 1: python 17_network_rep.py -i ../../minibinders_orthorep_data/minib
 """
 
 import networkx as nx
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import matplotlib.colors as mcolors
@@ -15,6 +17,7 @@ from typing import List, Dict, Tuple
 import numpy as np
 import pandas as pd
 import json
+import ast
 from utils_nd import *
 
 import argparse
@@ -50,9 +53,54 @@ def build_sequence_network(sequences: List[str], scores: List[float]) -> Tuple[n
     
     return G, node_data
 
+def build_sequence_network_with_frequency(sequences: List[str], 
+                                         scores: List[float],
+                                         frequencies: List[int]) -> Tuple[nx.Graph, Dict, Dict]:
+    """
+    Build a network with sequence, score, and frequency data.
+    
+    Args:
+        sequences: List of amino acid sequences (unique)
+        scores: List of function scores corresponding to each sequence
+        frequencies: List of observation counts for each sequence
+    
+    Returns:
+        G: NetworkX graph
+        node_data: Dictionary mapping sequences to their scores
+        frequency_data: Dictionary mapping sequences to their frequencies
+    """
+    # Create dictionaries
+    node_data = {seq: score for seq, score in zip(sequences, scores)}
+    frequency_data = {seq: freq for seq, freq in zip(sequences, frequencies)}
+    
+    # Create graph
+    G = nx.Graph()
+    
+    # Add nodes with their scores and frequencies as attributes
+    for seq, score, freq in zip(sequences, scores, frequencies):
+        G.add_node(seq, score=score, frequency=freq)
+    
+    # Add edges between sequences that differ by exactly 1 amino acid
+    print(f"Building edges for {len(sequences)} sequences...")
+    edge_count = 0
+    for i, seq1 in enumerate(sequences):
+        if (i + 1) % 100 == 0:  # Progress indicator
+            print(f"  Processed {i + 1}/{len(sequences)} sequences...")
+        for j, seq2 in enumerate(sequences[i+1:], start=i+1):
+            if hamming_distance(seq1, seq2) == 1:
+                G.add_edge(seq1, seq2)
+                edge_count += 1
+    
+    print(f"Created {edge_count} edges")
+    
+    return G, node_data, frequency_data
+
 def visualize_network(G: nx.Graph, node_data: Dict, expt_id='',
                      layout='spring', figsize=(12, 10),
-                     cmap='viridis', node_size=100,
+                     cmap='viridis', 
+                     size_by='frequency',  # NEW PARAMETER
+                     min_node_size=100,    # NEW PARAMETER
+                     max_node_size=1000,   # NEW PARAMETER
                      save_path=None):
     """
     Visualize the sequence network with nodes colored by function score.
@@ -84,33 +132,69 @@ def visualize_network(G: nx.Graph, node_data: Dict, expt_id='',
     # Get scores for coloring
     scores = [node_data[node] for node in G.nodes()]
     
+    # Get sizes based on frequency or other attribute
+    if size_by == 'frequency':
+        sizes = [G.nodes[node].get('frequency', 1) for node in G.nodes()]
+    elif size_by == 'degree':
+        sizes = [G.degree(node) for node in G.nodes()]
+    else:
+        sizes = [1] * len(G.nodes())
+    
+    # Normalize sizes to the specified range
+    if max(sizes) > min(sizes):
+        sizes_normalized = [
+            min_node_size + (s - min(sizes)) / (max(sizes) - min(sizes)) * (max_node_size - min_node_size)
+            for s in sizes
+        ]
+    else:
+        sizes_normalized = [min_node_size] * len(sizes)
+    
     # Normalize scores for colormap
     norm = mcolors.Normalize(vmin=min(scores), vmax=max(scores))
-    cmap_obj = plt.get_cmap(cmap)
+    cmap_obj = cm.get_cmap(cmap)
     
     # Draw network
     nx.draw_networkx_edges(G, pos, alpha=0.3, width=1.5, edge_color='gray', ax=ax)
     
-    # Draw nodes with color based on score
+    # Draw nodes with color based on score and size based on frequency
     nodes = nx.draw_networkx_nodes(G, pos, 
                                    node_color=scores,
-                                   node_size=node_size,
+                                   node_size=sizes_normalized,
                                    cmap=cmap_obj,
                                    vmin=min(scores),
                                    vmax=max(scores),
+                                   alpha=0.8,
                                    ax=ax)
     
-    # Add labels (optional - may be cluttered for large networks)
-    # Uncomment the next line if you want to show sequence labels
-    # nx.draw_networkx_labels(G, pos, font_size=8, ax=ax)
-    
-    # Add colorbar
-    cbar = plt.colorbar(nodes, ax=ax)
+    # Add colorbar for scores
+    cbar = plt.colorbar(nodes, ax=ax, fraction=0.046, pad=0.04)
     cbar.set_label('Function Score', rotation=270, labelpad=20, fontsize=12)
     
+    # Add size legend
+    if size_by:
+        # Create legend for node sizes
+        legend_sizes = [min(sizes), np.median(sizes), max(sizes)]
+        legend_labels = [f'{int(s)}' for s in legend_sizes]
+        legend_handles = []
+        
+        for size, label in zip(legend_sizes, legend_labels):
+            size_normalized = min_node_size + (size - min(sizes)) / (max(sizes) - min(sizes)) * (max_node_size - min_node_size) if max(sizes) > min(sizes) else min_node_size
+            handle = plt.scatter([], [], s=size_normalized, c='gray', alpha=0.6, edgecolors='black', linewidths=1)
+            legend_handles.append(handle)
+        
+        legend = ax.legend(legend_handles, legend_labels, 
+                          scatterpoints=1, 
+                          title=f'{size_by.capitalize()}',
+                          loc='upper left',
+                          frameon=True,
+                          fontsize=10)
+        legend.get_title().set_fontsize(12)
+    
     # Set title and remove axes
-    ax.set_title(f'Amino Acid Sequence Network for library {expt_id}\n(Edges connect sequences differing by 1 amino acid)', 
-                fontsize=14, fontweight='bold')
+    title = 'Amino Acid Sequence Network\n(Edges connect sequences differing by 1 amino acid)'
+    if size_by:
+        title += f'\nNode size = {size_by}'
+    ax.set_title(title, fontsize=14, fontweight='bold')
     ax.axis('off')
     
     plt.tight_layout()
@@ -118,8 +202,9 @@ def visualize_network(G: nx.Graph, node_data: Dict, expt_id='',
     # Save if path provided
     if save_path:
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        print(f"Figure saved to: {save_path}")
     
-    # plt.show()
+    plt.show()
 
 def analyze_network(G: nx.Graph, node_data: Dict, output_file=None):
     """
@@ -359,9 +444,23 @@ def main():
     
     function_scores = score_seq_df['average_score']
 
+    read_freq_cols = ['bin_0', 'bin_1', 'bin_2', 'bin_3']
+
+    frequencies = [
+        sum(sum(ast.literal_eval(row[col]) if isinstance(row[col], str) else row[col]) 
+            for col in read_freq_cols)
+        for idx, row in score_seq_df.iterrows()
+    ]    
+
+    # print(frequencies[:10])
+
      # Build network
     print("Building sequence network...")
-    G, node_data = build_sequence_network(sequences, function_scores)
+    # G, node_data = build_sequence_network(sequences, function_scores)
+
+    G, node_data, frequency_data = build_sequence_network_with_frequency(
+    sequences, function_scores, frequencies
+    )
     
     network_txt = dir_prefix + f'{expt_id}_network_stats.txt'
     
@@ -381,13 +480,16 @@ def main():
 
     # Visualize network in each network style
 
-    # for style in layouts:
-    #     print(f"\nVisualizing network ({style})...")
-    #     visualize_network(G, node_data, expt_id, 
-    #                      layout=str(style),  # Try 'circular', 'kamada_kawai', 'spectral'
-    #                      cmap='RdYlGn',    # Try 'viridis', 'plasma', 'coolwarm', 'RdYlGn'
-    #                      node_size=100,
-    #                      save_path = dir_prefix + f'{expt_id}_sequence_network_{style}.png')  # Set to None to not save
+    for style in layouts:
+        print(f"\nVisualizing network ({style})...")
+        visualize_network(G, node_data, expt_id, 
+                          layout=str(style),  # Try 'circular', 'kamada_kawai', 'spectral'
+                          cmap='RdYlGn',    # Try 'viridis', 'plasma', 'coolwarm', 'RdYlGn'
+                          size_by='frequency',  # This tells it to use frequency for sizing
+                          min_node_size=100,
+                          max_node_size=1000,
+                          save_path = dir_prefix + f'{expt_id}_sequence_network_{style}.png')  # Set to None to not save
+        
 
 if __name__ == "__main__":
     main()
