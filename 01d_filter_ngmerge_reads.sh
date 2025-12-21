@@ -22,9 +22,10 @@
 ## $3+ list of fastq.gz files to be run through (loaded as wildcard)
 # Only specify one of each read pair; the other
 # filename is assumed (R2 if R1, or R1 if R2.)
-# Example 1: sh 01_filter_ngmerge_reads.sh
-# ../../manzanaa_data/ngs_raw/ex_001/demultiplex/ex_001_demux_metadata.txt ex_001
-# ../../manzanaa_data/ngs_raw/ex_001/demultiplex/*_R1_001.fastq.gz
+# Example 1: bash 01d_filter_ngmerge_reads.sh \
+# ../../minibinders_orthorep_data/ngs_raw/jh_024/demultiplex/jh_024_metadata.txt \
+# jh_024 \
+# ../../minibinders_orthorep_data/ngs_raw/jh_024/demultiplex/*_R1_001.fastq.gz
 #
 ### OUTPUTS
 ## md5sum

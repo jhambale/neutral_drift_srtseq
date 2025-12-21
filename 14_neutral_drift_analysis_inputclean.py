@@ -14,7 +14,9 @@ example run 1: python 14_neutral_drift_analysis_input.py -i ../../minibinders_or
 import pandas as pd
 import tqdm
 import math
-from matplotlib import pyplot as plt
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend
+import matplotlib.pyplot as plt
 import scipy.stats as stats
 from matplotlib.lines import Line2D
 import numpy as np
@@ -306,7 +308,7 @@ def main():
     X = scored_df_uniform[rep_cols].values
     
     # Use KMeans clustering to group points into 3 categories
-    kmeans = KMeans(n_clusters=3, random_state=42, n_init='auto')
+    kmeans = KMeans(n_clusters=3, random_state=42, n_init='auto', init = 'k-means++')
     kmeans_labels = kmeans.fit_predict(X)
     
     # Map cluster labels to descriptive categories (assign based on mean locations)
